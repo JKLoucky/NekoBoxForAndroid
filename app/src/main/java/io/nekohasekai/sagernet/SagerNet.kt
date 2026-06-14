@@ -89,10 +89,13 @@ class SagerNet : Application(),
 
                 updateNotificationChannels()
             }
-         if (VpnService.prepare(this) != null) {
+
+            // 若 VPN 授权尚未授予，尝试通过 root 预授权，避免弹出系统授权框。
+            // 已授权时 prepare() 返回 null，直接跳过，不会触发 root 请求。
+            if (VpnService.prepare(this) != null) {
                 grantVpnPermissionViaRoot()
+            }
         }
-      }
 
         if (BuildConfig.DEBUG) {
             System.setProperty(DEBUG_PROPERTY_NAME, DEBUG_PROPERTY_VALUE_ON)
@@ -110,6 +113,23 @@ class SagerNet : Application(),
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         updateNotificationChannels()
+    }
+
+    // 通过 root 把本应用的 ACTIVATE_VPN AppOps 权限设为 allow，
+    // 等价于用户在系统授权框里点了"OK"，之后 VpnService.prepare() 会返回 null，不再弹框。
+    private fun grantVpnPermissionViaRoot() {
+        runOnDefaultDispatcher {
+            try {
+                val pkg = BuildConfig.APPLICATION_ID
+                val process = ProcessBuilder(
+                    "su", "-c", "appops set $pkg ACTIVATE_VPN allow"
+                ).redirectErrorStream(true).start()
+                process.waitFor()
+                Logs.i("grantVpnPermissionViaRoot: appops exit=${process.exitValue()}")
+            } catch (e: Exception) {
+                Logs.w("grantVpnPermissionViaRoot failed: ${e.message}")
+            }
+        }
     }
 
     override fun getWorkManagerConfiguration(): WorkConfiguration {
