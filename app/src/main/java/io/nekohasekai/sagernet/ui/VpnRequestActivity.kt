@@ -57,11 +57,38 @@ class VpnRequestActivity : AppCompatActivity() {
             input: Void?,
         ): SynchronousResult<Boolean>? {
             if (DataStore.serviceMode == Key.MODE_VPN) VpnService.prepare(context)?.let { intent ->
+                // 刚刷完机时 VPN 授权尚未授予。先尝试用 root 同步授权，
+                // 成功后系统授权框就不会出现，首次连接也不弹。
+                if (grantVpnPermissionViaRoot(context) && VpnService.prepare(context) == null) {
+                    SagerNet.startService()
+                    return SynchronousResult(false)
+                }
                 cachedIntent = intent
                 return null
             }
             SagerNet.startService()
             return SynchronousResult(false)
+        }
+
+        // 通过 root 把 ACTIVATE_VPN AppOps 设为 allow（等价于在系统框点 OK）。
+        // 放在工作线程并限时 join，避免 su 卡住导致主线程 ANR。
+        private fun grantVpnPermissionViaRoot(context: Context): Boolean {
+            val pkg = context.packageName
+            var ok = false
+            val worker = Thread {
+                try {
+                    val process = ProcessBuilder(
+                        "su", "-c", "appops set $pkg ACTIVATE_VPN allow"
+                    ).redirectErrorStream(true).start()
+                    process.waitFor()
+                    ok = process.exitValue() == 0
+                } catch (e: Exception) {
+                    Logs.w("grantVpnPermissionViaRoot failed: ${e.message}")
+                }
+            }
+            worker.start()
+            worker.join(4000)
+            return ok
         }
 
         override fun createIntent(context: Context, input: Void?) =
@@ -76,6 +103,5 @@ class VpnRequestActivity : AppCompatActivity() {
                 true
             }
     }
-
 
 }
