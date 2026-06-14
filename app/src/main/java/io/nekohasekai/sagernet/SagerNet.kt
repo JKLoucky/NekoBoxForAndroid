@@ -90,6 +90,8 @@ class SagerNet : Application(),
                 updateNotificationChannels()
             }
 
+            // 若 VPN 授权尚未授予，尝试通过 root 预授权，避免弹出系统授权框。
+            // 已授权时 prepare() 返回 null，直接跳过，不会触发 root 请求。
             if (VpnService.prepare(this) != null) {
                 grantVpnPermissionViaRoot()
             }
@@ -113,6 +115,8 @@ class SagerNet : Application(),
         updateNotificationChannels()
     }
 
+    // 通过 root 把本应用的 ACTIVATE_VPN AppOps 权限设为 allow，
+    // 等价于用户在系统授权框里点了“OK”，之后 VpnService.prepare() 会返回 null，不再弹框。
     private fun grantVpnPermissionViaRoot() {
         runOnDefaultDispatcher {
             try {
