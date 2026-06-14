@@ -89,7 +89,10 @@ class SagerNet : Application(),
 
                 updateNotificationChannels()
             }
+         if (VpnService.prepare(this) != null) {
+                grantVpnPermissionViaRoot()
         }
+      }
 
         if (BuildConfig.DEBUG) {
             System.setProperty(DEBUG_PROPERTY_NAME, DEBUG_PROPERTY_VALUE_ON)
